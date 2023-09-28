@@ -1,0 +1,41 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-production
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      add_header X-Frame-Options "sameorigin";
+      add_header X-Content-Type-Options nosniff;
+      add_header Referrer-Policy 'same-origin';
+      add_header Content-Security-Policy "default-src 'self';";
+#    nginx.ingress.kubernetes.io/affinity-mode: persistent
+#    nginx.ingress.kubernetes.io/enable-modsecurity: "true"
+#    nginx.ingress.kubernetes.io/enable-owasp-core-rules: "true"
+#    nginx.ingress.kubernetes.io/modsecurity-snippet: |
+#      SecRuleEngine On
+#      SecAuditEngine On
+#      SecAuditLog /var/log/modsec_audit.log
+#      SecDebugLogLevel 9
+#      SecDebugLog /var/log/modsec_debug.log
+#      Include /usr/nginx/customRules.conf
+    nginx.ingress.kubernetes.io/proxy-buffer-size: 8k
+    nginx.ingress.kubernetes.io/use-geoip: "false"
+    nginx.ingress.kubernetes.io/use-geoip2: "true"
+  name: ckan
+spec:
+  rules:
+  - host: ckan.staging.odala.kiel.de
+    http:
+      paths:
+      - backend:
+          service:
+            name: ckan
+            port:
+              number: 80
+        path: /
+        pathType: Prefix
+  tls:
+  - hosts:
+    - ckan.staging.odala.kiel.de
+    secretName: ckan-cert

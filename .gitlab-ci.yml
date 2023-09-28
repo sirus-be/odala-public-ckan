@@ -1,0 +1,87 @@
+# Copyright (C) Contrasec 2022
+#.gitlab-ci.yml
+
+# Deployment script
+
+.deploy_template: &deploy_template
+  tags:
+    - profirator #Only runners with this tag are used
+  image: dtzar/helm-kubectl
+  stage: deploy
+  script:
+    - echo "$KUBE" > config  # Echo Kubeconfig to a file
+                             # so it can be used by kubectl
+    
+    # Replace placeholders in values.yaml with staging or production variables
+    - sed -i "s~+DBHost+~${DBHost}~g" ./ckan-helm/values.yaml
+    - sed -i "s~+CkanDBPass+~${CkanDBPass}~g" ./ckan-helm/values.yaml
+    - sed -i "s~+DatastoreRWDBPass+~${DatastoreRWDBPass}~g" ./ckan-helm/values.yaml
+    - sed -i "s~+DatastoreRODBPass+~${DatastoreRODBPass}~g" ./ckan-helm/values.yaml
+    - sed -i "s~+sysadminPassword+~${sysadminPassword}~g" ./ckan-helm/values.yaml
+    - sed -i "s~+siteUrl+~${siteUrl}~g" ./ckan-helm/values.yaml
+    
+    # Replace placeholders in values.yaml with Kubernetes secrets
+    - MasterDBPass=$(kubectl get secrets/timescaledb-credentials --template={{.data.password}} --namespace ${NAMESPACE} --kubeconfig config| base64 -d)
+    - MasterDBUser=$(kubectl get secrets/timescaledb-credentials --template={{.data.user}} --namespace ${NAMESPACE} --kubeconfig config| base64 -d)
+
+    - sed -i "s~+MasterDBPass+~${MasterDBPass}~g" ./ckan-helm/values.yaml
+    - sed -i "s~+MasterDBUser+~${MasterDBUser}~g" ./ckan-helm/values.yaml
+
+    # ensure_pull_secret:  Checks if the pull secret (Kubernetes Resource) is already 
+    #                     available in the respective environment (Kubernetes namespace)
+    #                     so Kubernetes can access the GitLab Registry
+    #- kubectl get secret -n ${NAMESPACE} gitlab-regcred 2>/dev/null || kubectl create secret --namespace ${NAMESPACE} docker-registry gitlab-regcred --docker-server=gitlab.publiccode.solutions:5050 --docker-username=gitlab+deploy-token-1 --docker-password=8vFDHdb-KareuuzSzH2x
+    
+    # Full CKAN deploy (for new environments)
+    # Set createckanpvc = true in values.yaml
+    # Full CKAN deploy (new ckan deploy with dependencies, link to datasets is reset, see README.md how to restore)
+    - helm delete ckan-odala --namespace ${NAMESPACE} --kubeconfig config| kubectl delete pvc -l release=ckan-odala --namespace ${NAMESPACE} --kubeconfig config| kubectl delete pvc solr-pvc-solr-0 --namespace ${NAMESPACE} --kubeconfig config
+    - helm install ckan-odala ./ckan-helm --values=./ckan-helm/values.yaml --namespace ${NAMESPACE} --kubeconfig config
+    
+    # CKAN deploy
+    #- helm upgrade ckan-odala ./ckan-helm --values=./ckan-helm/values.yaml --namespace ${NAMESPACE} --kubeconfig config
+
+    
+
+# Stages
+  
+stages:
+  - deploy
+
+
+# Staging deployment stage
+
+do deploy staging:
+  <<: *deploy_template
+  variables:
+    NAMESPACE: odala-staging
+    KUBE: $KUBECONFIG                 # Get KUBECONFIG from Gitlab CI/CD variable
+    DBHost: $Postgres_Staging_Host
+    MasterDBUser: none
+    MasterDBPass: none
+    CkanDBPass: $CKAN_Staging_CkanDb_Password
+    DatastoreRWDBPass: $CKAN_Staging_DatastoreRWDB_Password
+    DatastoreRODBPass: $CKAN_Staging_DatastoreRODB_Password
+    sysadminPassword: $CKAN_Staging_SysadminPassword_Password
+    siteUrl: $CKAN_Staging_SiteUrl
+  only:
+    #- /^C./                           # Every branch that starts with C #################################################
+    - /^odala-staging./              # Only odala-staging              #################################################
+    
+
+# Production deployment stage
+
+do deploy prod:
+  <<: *deploy_template
+  variables:
+    NAMESPACE: odala-production
+    KUBE: $KUBECONFIG                 # Get KUBECONFIG from Gitlab CI/CD variable
+    MasterDBPass: $CKAN_Production_Postgres_Password
+    CkanDBPass: $CKAN_Production_CkanDb_Password
+    DatastoreRWDBPass: $CKAN_Production_DatastoreRWDB_Password
+    DatastoreRODBPass: $CKAN_Production_DatastoreRODB_Password
+    sysadminPassword: $CKAN_Production_SysadminPassword_Password
+  only:
+    #- /^R./                           # Every branch that starts with R #################################################
+    - odala-production               # Only odala-production           #################################################
+  when: manual                        # Require manual step in pipeline to deploy to prod. Remove if not needed

@@ -1,0 +1,15 @@
+dependencies:
+- name: redis
+  repository: https://charts.bitnami.com/bitnami
+  version: 12.2.3
+- name: solr
+  repository: https://charts.helm.sh/incubator
+  version: 1.4.0
+- name: postgresql
+  repository: https://charts.bitnami.com/bitnami
+  version: 10.2.0
+- name: datapusher
+  repository: https://keitaro-charts.storage.googleapis.com
+  version: 1.0.0
+digest: sha256:3268691cc5ef66b97fbf8fc0c850b1d6b4b677a3aaada00b6e0570e40088c1ed
+generated: "2021-02-15T17:16:23.888464975+01:00"

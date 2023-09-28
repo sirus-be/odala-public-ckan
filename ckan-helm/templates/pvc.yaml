@@ -1,0 +1,15 @@
+{{- if .Values.pvc.createckanpvc -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ckan
+  annotations:
+    helm.sh/resource-policy: "keep"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.pvc.size }}
+  storageClassName: {{ .Values.pvc.storageClassName }}
+{{- end }}
